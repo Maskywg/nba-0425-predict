@@ -355,6 +355,11 @@ function toast(msg){
   setTimeout(() => t.classList.remove('show'), 2800);
 }
 
+// ── 全域函數（讓 onclick 可以呼叫）──────────────────
+window.pick = pick;
+window.submitPrediction = submitPrediction;
+window.deleteMe = deleteMe;
+
 // ── 啟動 ──────────────────────────────────────────────
 renderMatches();
 loadDB();
