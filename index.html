@@ -152,7 +152,7 @@ h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(44px,9vw,76px);line-heigh
 </div>
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
 // ── CONFIG（換賽事只需改這裡）────────────────────────
 const CONFIG = {
   deadlineDate: new Date('2026-04-25T07:00:00+08:00'),
@@ -268,17 +268,30 @@ function pick(idx, team, side, btn){
   setTimeout(() => btn.style.transform = '', 140);
 }
 
-// ── 儲存 ──────────────────────────────────────────────
-async function loadDB(){
-  try{
-    const r = await window.storage.get(CONFIG.storageKey);
-    if(r && r.value) db = JSON.parse(r.value);
-  } catch(e){ db = []; }
-  renderLB();
-}
+// ── Firebase 設定 ─────────────────────────────────────
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-async function saveDB(){
-  try{ await window.storage.set(CONFIG.storageKey, JSON.stringify(db)); } catch(e){}
+const firebaseConfig = {
+  apiKey: "AIzaSyDSQxPkn2D-Gou5rCRzGG5z2v881EphAj8",
+  authDomain: "gen-lang-client-0737444461.firebaseapp.com",
+  projectId: "gen-lang-client-0737444461",
+  storageBucket: "gen-lang-client-0737444461.firebasestorage.app",
+  messagingSenderId: "266006971614",
+  appId: "1:266006971614:web:0c91d8ba3c5f78671f6e4f"
+};
+
+const app = initializeApp(firebaseConfig);
+const fsdb = getFirestore(app);
+const colRef = collection(fsdb, 'nba_0425_predict');
+
+// ── 即時監聽 Firestore ────────────────────────────────
+function loadDB(){
+  const q = query(colRef, orderBy('time'));
+  onSnapshot(q, (snapshot) => {
+    db = snapshot.docs.map(d => d.data());
+    renderLB();
+  });
 }
 
 // ── 提交 ──────────────────────────────────────────────
@@ -288,12 +301,12 @@ async function submitPrediction(){
   if(!myName){ toast('⚠️ 請輸入你的名字！'); return; }
   const miss = votes.filter(v => !v).length;
   if(miss){ toast(`⚠️ 還有 ${miss} 場未選！`); return; }
-  db = db.filter(e => e.name.toLowerCase() !== myName.toLowerCase());
-  db.push({ name: myName, votes: [...votes], time: Date.now() });
-  await saveDB();
-  toast('✅ 預測已送出！');
-  renderLB();
-  setTimeout(() => document.getElementById('lb-section').scrollIntoView({behavior:'smooth', block:'start'}), 400);
+  try{
+    const docRef = doc(colRef, myName.toLowerCase());
+    await setDoc(docRef, { name: myName, votes: [...votes], time: Date.now() });
+    toast('✅ 預測已送出！');
+    setTimeout(() => document.getElementById('lb-section').scrollIntoView({behavior:'smooth', block:'start'}), 400);
+  } catch(e){ toast('❌ 送出失敗，請再試一次'); }
 }
 
 // ── 刪除 ──────────────────────────────────────────────
@@ -301,12 +314,12 @@ async function deleteMe(){
   if(locked) return;
   if(!myName) return;
   if(!confirm(`確定要刪除「${myName}」的預測嗎？`)) return;
-  db = db.filter(e => e.name.toLowerCase() !== myName.toLowerCase());
-  await saveDB();
-  votes = new Array(MATCH_COUNT).fill(null);
-  document.querySelectorAll('.vbtn').forEach(b => b.classList.remove('sel-l','sel-r'));
-  toast('🗑 預測已刪除');
-  renderLB();
+  try{
+    await deleteDoc(doc(colRef, myName.toLowerCase()));
+    votes = new Array(MATCH_COUNT).fill(null);
+    document.querySelectorAll('.vbtn').forEach(b => b.classList.remove('sel-l','sel-r'));
+    toast('🗑 預測已刪除');
+  } catch(e){ toast('❌ 刪除失敗'); }
 }
 
 // ── 排行榜 ────────────────────────────────────────────
